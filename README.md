@@ -1,2 +1,2 @@
 # DevelViktor
-Viktor's hobby projects.
+Viktor's hobby projects. Edited.
