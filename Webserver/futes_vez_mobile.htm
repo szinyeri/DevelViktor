@@ -1,0 +1,188 @@
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<!-- <script src = "https://code.jquery.com/jquery-1.12.4.min.js"></script> -->
+<link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css" />
+<script src="http://code.jquery.com/jquery-1.11.1.min.js"></script>
+<script src="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+
+<script>
+	var zonetable, zonecfg;
+  $( document ).ready(function() {
+				console.log( "document loaded" );
+				var allInput = $( "input" );
+				var arr = jQuery.makeArray( allInput );
+			//	console.log(allInput);
+			//	console.log(arr);
+				});
+				
+	$( window ).load(function() {
+		 $( "#futeskapcs" ).on( "click", FutesKapcs);
+     $( "#futesmode"  ).on( "click", SetMode);
+     $("#temprange"   ).on("input change", sethomval);
+     $("#temprange"   ).on("mouseup", rangeMouseUp);
+     $("#frissit"     ).on("click", function( event ) {
+				$.get("/?status=1", fillform );
+			});
+		$.get("/?status=1", fillform );
+    console.log( "window loaded" );   
+	}); // $( window ).load(function()
+  
+function sethomval(){
+	var a= $("[id=temprange]").val();
+	$( "#hom1").html( a.slice(0,2)+"."+a.slice(2,3));
+}
+
+function SetMode(){
+	if ($( "button[id='futesmode']").val()==0) {
+		$('#process-status').html( "Automatikus üzemmódra kapcsolás..."); 
+		$.get("/?autofutes=1", function(data){
+			fillform(data)
+		});
+	} else {
+		$('#process-status').html( "Kézi üzemmódra kapcsolás..."); 
+		$.get("/?autofutes=0", function(data){
+			fillform(data)
+		});	
+	}
+}
+
+function FutesKapcs(){
+	if ($( "button[id='futeskapcs']").val()=="1") {
+		$('#process-status').html( "Fűtés kikapcsolás..."); 
+		$.get("/?zona=1&start=0&interv=30", function(data){
+			fillform(data)
+		});
+	} else {
+		$('#process-status').html( "Fűtés bekapcsolás..."); 
+		$.get("/?zona=1&start=1&interv=30", function(data){
+			fillform(data)
+		});
+	}
+}
+
+function rangeMouseUp(){
+	set_T = $("[id=temprange]").val();
+	// ha változott, akkor leküldi nodemcu-nak
+	if (set_T != env.man_T) {
+		$.get("/?settemp="+ set_T, function(data){
+			fillform(data)
+		});	
+	}
+}
+
+function fillform(ertekek){
+	$('#process-status').html(ertekek);
+	if (ertekek.slice(0,13) !=' {"automode":') {
+		// nem jo valasz jott, ezert lecsereljuk egy defaultra
+		ertekek = '{"automode":"false", "auto_T":111, "man_T":111, "futes":0, "humi":111, "mert_T":111 }'
+	}	else {
+		// ha nem jol jön debug miatt, akkor itt helyre tesszük
+		ertekek=ertekek.slice(0, ertekek.search("}")+1);
+	}	
+	env = JSON.parse(ertekek);
+	$( "#hom2").html( env.mert_T/10);
+	$( "#humi").html( env.humi/10+"%");
+	// auto gomb beállítása és szinezése
+	if (env.automode =="true") {
+		$( "#hom1").html( env.auto_T/10);
+		$( "#temprange").val(env.auto_T);
+		$( "button[id='futesmode']").val("1");
+		$( "button[id='futesmode']").html("Auto üzemmód");
+		$( "button[id='futesmode']").css('background-color','red');
+	} else {
+		$( "#hom1").html( env.man_T/10);
+		$( "#temprange").val(env.man_T);
+		$( "button[id='futesmode']").val("0");
+		$( "button[id='futesmode']").html("Kézi üzemmód");
+		$( "button[id='futesmode']").css('background-color','Lime');
+	}
+// manual gomb beállítása és szinezése
+	if (env.futes == 0) {
+		$( "button[id='futeskapcs']").val("0");
+		$( "button[id='futeskapcs']").html("Fűtés kikapcsolt");
+		$( "button[id='futeskapcs']").css('background-color','rgb(200, 200, 200)');
+	} else if ( env.futes==1 ){
+		$( "button[id='futeskapcs']").val("1");
+		$( "button[id='futeskapcs']").html("Fűtés bekapcsolt");
+		$( "button[id='futeskapcs']").css('background-color','red');
+	}	
+}
+
+  // kitölti a táblázatot a zoncfg adatokkal 
+function filltable(data) {
+	// $('#process-status').html(data);
+  zonecfg = data.split("\n");
+  var zonetable;
+  var datum;
+	var stido;
+	var zona = 'string';
+	var interv; 
+	if (zonecfg[0] =="Mon") {
+		$( "input[type='checkbox']").prop('checked', false); // összes checkbox nullázása
+		for (i = 0; i < zonecfg.length-1; i++) {
+			if (/[a-z|A-z]+/.test(zonecfg[i]) ) {
+				datum = /[a-z|A-z]+/.exec(zonecfg[i]);
+				console.log("nap found:" + datum);
+			} else {
+				stido = /[0-9]{2}:[0-9]{2}/.exec(zonecfg[i]);
+				zona = /,[0-9]{1},/.exec(zonecfg[i]);
+				str= zona.toString();
+				str = str.substr(1,1);
+				interv = /[0-9]+$/.exec(zonecfg[i]);
+				$( "input[id=\'" + datum +"\'][name=\'wd"+ str +"\']").prop('checked', true); //checkbox
+				$( "input[id=\'start" + str +"\']").val(stido); // start time
+				$( "input[id=\'interv" + str +"\']").val("00:"+interv); // interval 
+			}
+		}
+	}
+}
+</script>
+</head>
+<body>
+<h1> ESP-8266 Szobatermosztát</h1>
+
+<p>
+
+<!--<table style="width:50%">-->
+ <tr id="z1" >
+		<td><button class="vezbutton" id="futeskapcs" value="0">Fűtés kikapcsolt</button></td>
+		
+	<td><button class="vezbutton" id="futesmode" value ="1" style="background-color:red">Auto üzemmód</button></td>
+		
+	</tr>
+ 
+ <tr id="z3" >
+		<td><!--<button onclick="chgvalue(1)" >+</button><br> -->
+		<br>Beállítás:<br> <span class="temp" id="hom1" style="display:inline-block ;width: 100">20.0</span>
+ <div data-role="main" class="ui-content">
+    
+      <label for="points">Points:</label>
+      <input type="range" name="points" id="points" value="50" min="0" max="100">
+      <input type="submit" data-inline="true" value="Submit">
+    
+  </div>
+</div>
+    <input id ="temprange" class="temp" type="range" name="settemp" value="20" step="1" min="100" max ="300" onmouseup="rangeMouseUp()">
+    <!-- <br><button onclick="chgvalue(0)" >-</button>--></td>
+	</tr>
+
+<tr id="z4" >
+<td>Szoba: <span class="temp" id="hom2"> 20.0 </span>Pára: <span class="temp"id="humi">20.0</span></td>	
+
+<!--</tr>
+-->
+
+
+</table> 
+<br>
+<p><button type="button" id="mentes" >Mentés</button>
+<button type="button" id="frissit" >Frissít</button>
+</p>
+<pre id="process-status"></pre>
+<br>
+</div>
+
+</form>
+</body>
+</html>
